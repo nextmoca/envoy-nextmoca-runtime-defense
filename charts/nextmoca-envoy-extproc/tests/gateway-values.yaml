@@ -1,0 +1,9 @@
+existingSecret:
+  name: customer-nextmoca-key
+
+envoyGateway:
+  enabled: true
+  targetRef:
+    name: model-provider-route
+  messageTimeout: 3s
+  failOpen: false

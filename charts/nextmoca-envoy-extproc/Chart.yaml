@@ -1,0 +1,15 @@
+apiVersion: v2
+name: nextmoca-envoy-extproc
+description: Route-scoped Next Moca Runtime Defense bridge for Envoy External Processing.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.26.0-0"
+home: https://nextmoca.com
+sources:
+  - https://github.com/nextmoca/envoy-nextmoca-runtime-defense
+maintainers:
+  - name: Next Moca
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/category: security

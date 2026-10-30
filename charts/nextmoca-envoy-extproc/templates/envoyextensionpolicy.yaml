@@ -1,0 +1,31 @@
+{{- if .Values.envoyGateway.enabled }}
+{{- if not .Values.envoyGateway.targetRef.name }}
+{{- fail "envoyGateway.targetRef.name is required when envoyGateway.enabled is true" }}
+{{- end }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: {{ include "nextmoca-envoy-extproc.fullname" . }}
+  labels:
+    {{- include "nextmoca-envoy-extproc.labels" . | nindent 4 }}
+spec:
+  targetRefs:
+    - group: {{ .Values.envoyGateway.targetRef.group }}
+      kind: {{ .Values.envoyGateway.targetRef.kind }}
+      name: {{ .Values.envoyGateway.targetRef.name }}
+      {{- with .Values.envoyGateway.targetRef.namespace }}
+      namespace: {{ . }}
+      {{- end }}
+      {{- with .Values.envoyGateway.targetRef.sectionName }}
+      sectionName: {{ . }}
+      {{- end }}
+  extProc:
+    - backendRefs:
+        - name: {{ include "nextmoca-envoy-extproc.fullname" . }}
+          port: {{ .Values.service.grpcPort }}
+      processingMode:
+        request:
+          body: Buffered
+      messageTimeout: {{ .Values.envoyGateway.messageTimeout }}
+      failOpen: {{ .Values.envoyGateway.failOpen }}
+{{- end }}

@@ -1,0 +1,86 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/nextmoca/envoy-nextmoca-runtime-defense
+  pullPolicy: IfNotPresent
+  tag: ""
+  digest: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+existingSecret:
+  name: customer-nextmoca-key
+  key: api-key
+
+bridge:
+  endpoint: https://api.nextmoca.com
+  mode: quarantine
+  requestAdapter: auto
+  unsupportedShape: block
+  onSelectionError: block
+  maxContextTokens: 8192
+  capacityTokens: 128000
+  operatingPoint: np-2026-10-r8
+  timeout: 3s
+  breakerFailures: 3
+  breakerCooldown: 30s
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  grpcPort: 9002
+  healthPort: 8080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  additionalLabels: {}
+
+envoyGateway:
+  enabled: false
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: ""
+    namespace: ""
+    sectionName: ""
+  messageTimeout: 3s
+  failOpen: false

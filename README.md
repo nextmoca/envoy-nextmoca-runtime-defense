@@ -52,6 +52,30 @@ docker run --rm \
 
 `GET /healthz` is served on port `8080`; the Envoy ExtProc gRPC service listens on port `9002`.
 
+## Helm Installation
+
+The production distribution is an OCI Helm chart. It deploys only this thin
+bridge and requires the API key to already exist in a Kubernetes Secret.
+
+```bash
+kubectl create secret generic nextmoca-api-key \
+  --from-literal=api-key="$NEXTMOCA_API_KEY" \
+  --namespace ai-gateway
+
+helm upgrade --install nextmoca \
+  oci://ghcr.io/nextmoca/charts/nextmoca-envoy-extproc \
+  --version 0.1.0 \
+  --namespace ai-gateway --create-namespace \
+  --set existingSecret.name=nextmoca-api-key
+```
+
+The release workflow publishes the image and chart when a `v*` Git tag is
+created. Until that first release tag exists, build the image locally and use
+the checked-out chart with `helm upgrade --install nextmoca charts/nextmoca-envoy-extproc ...`.
+
+The bridge serves bounded Prometheus metrics on `/metrics`. Its metric labels
+never include prompts, selected records, user data, API keys, or request IDs.
+
 ## Envoy Gateway
 
 The Kubernetes example in [`deploy/envoy-gateway`](deploy/envoy-gateway) deploys the bridge and attaches it to an `HTTPRoute` through an `EnvoyExtensionPolicy`.
@@ -91,6 +115,8 @@ The bridge sends `x-nextmoca-decision`, `x-nextmoca-outcome`, token counts, and,
 
 ```bash
 make test
+make chart-lint
+make chart-test
 make e2e
 ```
 

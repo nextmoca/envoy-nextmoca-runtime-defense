@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nextmoca-envoy-extproc.fullname" . }}
+  labels:
+    {{- include "nextmoca-envoy-extproc.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "nextmoca-envoy-extproc.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nextmoca-envoy-extproc.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "nextmoca-envoy-extproc.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: bridge
+          image: {{ include "nextmoca-envoy-extproc.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: NEXTMOCA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "existingSecret.name is required" .Values.existingSecret.name }}
+                  key: {{ .Values.existingSecret.key }}
+            - name: NEXTMOCA_ENDPOINT
+              value: {{ .Values.bridge.endpoint | quote }}
+            - name: NEXTMOCA_MODE
+              value: {{ .Values.bridge.mode | quote }}
+            - name: NEXTMOCA_REQUEST_ADAPTER
+              value: {{ .Values.bridge.requestAdapter | quote }}
+            - name: NEXTMOCA_UNSUPPORTED_SHAPE
+              value: {{ .Values.bridge.unsupportedShape | quote }}
+            - name: NEXTMOCA_ON_SELECTION_ERROR
+              value: {{ .Values.bridge.onSelectionError | quote }}
+            - name: NEXTMOCA_MAX_CONTEXT_TOKENS
+              value: {{ .Values.bridge.maxContextTokens | quote }}
+            - name: NEXTMOCA_CAPACITY_TOKENS
+              value: {{ .Values.bridge.capacityTokens | quote }}
+            - name: NEXTMOCA_OPERATING_POINT
+              value: {{ .Values.bridge.operatingPoint | quote }}
+            - name: NEXTMOCA_TIMEOUT
+              value: {{ .Values.bridge.timeout | quote }}
+            - name: NEXTMOCA_BREAKER_FAILURES
+              value: {{ .Values.bridge.breakerFailures | quote }}
+            - name: NEXTMOCA_BREAKER_COOLDOWN
+              value: {{ .Values.bridge.breakerCooldown | quote }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.service.grpcPort }}
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.service.healthPort }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
