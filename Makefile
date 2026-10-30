@@ -1,4 +1,4 @@
-.PHONY: test build chart-lint chart-test chart-package e2e e2e-hosted e2e-envoy-gateway
+.PHONY: test build chart-lint chart-test chart-package e2e e2e-hosted e2e-envoy-gateway e2e-istio
 
 test:
 	go test ./... -count=1
@@ -23,3 +23,6 @@ e2e-hosted:
 
 e2e-envoy-gateway:
 	./scripts/e2e-envoy-gateway.sh
+
+e2e-istio:
+	./scripts/e2e-istio.sh

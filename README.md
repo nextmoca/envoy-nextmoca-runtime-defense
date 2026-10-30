@@ -172,6 +172,16 @@ make e2e-envoy-gateway
 
 It installs Envoy Gateway `v1.9.0`, deploys the bridge plus deterministic fixtures, attaches the included `EnvoyExtensionPolicy`, sends an OpenAI-compatible request through the Gateway data plane, and then deletes the cluster.
 
+To verify the Istio sidecar route against a disposable local Kind cluster:
+
+```bash
+make e2e-istio
+```
+
+It installs Istio `1.31.3` through the official Helm charts, injects an agent
+sidecar, applies a workload-scoped `EnvoyFilter`, and verifies that the sidecar
+forwards governed context plus Next Moca receipt headers to a provider fixture.
+
 ## Verified Release Gate
 
 The following gate passed on October 30, 2026 for this repository's bridge,
