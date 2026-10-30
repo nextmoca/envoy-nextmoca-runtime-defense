@@ -15,6 +15,7 @@ import (
 	envoyextproc "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/adapter"
+	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/metrics"
 	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/nextmoca"
 	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/policy"
 )
@@ -33,9 +34,10 @@ type Server struct {
 	envoyextproc.UnimplementedExternalProcessorServer
 	config   Config
 	selector nextmoca.Selector
+	metrics  *metrics.Metrics
 }
 
-func NewServer(config Config, selector nextmoca.Selector) *Server {
+func NewServer(config Config, selector nextmoca.Selector, reported ...*metrics.Metrics) *Server {
 	if config.Mode == "" {
 		config.Mode = "shadow"
 	}
@@ -57,7 +59,11 @@ func NewServer(config Config, selector nextmoca.Selector) *Server {
 	if config.OperatingPoint == "" {
 		config.OperatingPoint = "np-2026-10-r8"
 	}
-	return &Server{config: config, selector: selector}
+	telemetry := metrics.New()
+	if len(reported) > 0 && reported[0] != nil {
+		telemetry = reported[0]
+	}
+	return &Server{config: config, selector: selector, metrics: telemetry}
 }
 
 func (s *Server) Process(stream envoyextproc.ExternalProcessor_ProcessServer) error {
@@ -119,6 +125,7 @@ func (s *Server) processRequestBody(ctx context.Context, body []byte, endOfStrea
 		return s.unsupported("context_security_unsupported_request")
 	}
 	if request.CandidateCount() == 0 {
+		s.metrics.ObserveDecision(s.config.Mode, policy.Decision{Kind: policy.PassThrough, Reason: "no_candidate_context"})
 		return bodyResponse(nil, receiptHeaders(policy.Receipt{Reason: "no_candidate_context"}))
 	}
 
@@ -126,6 +133,7 @@ func (s *Server) processRequestBody(ctx context.Context, body []byte, endOfStrea
 		RequestID: newRequestID(), TaskPrompt: request.TaskPrompt, Records: request.Records,
 	})
 	decision := policy.Decide(policy.Settings{Mode: s.config.Mode, OnSelectionError: s.config.OnSelectionError}, body, request, response, selectErr)
+	s.metrics.ObserveDecision(s.config.Mode, decision)
 	if decision.Kind == policy.Block {
 		return blockResponse(decision.Reason)
 	}
@@ -137,8 +145,10 @@ func (s *Server) processRequestBody(ctx context.Context, body []byte, endOfStrea
 
 func (s *Server) unsupported(reason string) *envoyextproc.ProcessingResponse {
 	if screeningMode(s.config.Mode) && strings.EqualFold(s.config.UnsupportedShape, "block") {
+		s.metrics.ObserveDecision(s.config.Mode, policy.Decision{Kind: policy.Block, Reason: reason})
 		return blockResponse(reason)
 	}
+	s.metrics.ObserveDecision(s.config.Mode, policy.Decision{Kind: policy.PassThrough, Reason: reason})
 	return bodyResponse(nil, receiptHeaders(policy.Receipt{Reason: reason}))
 }
 

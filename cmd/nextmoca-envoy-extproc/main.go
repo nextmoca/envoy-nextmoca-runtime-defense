@@ -16,6 +16,7 @@ import (
 
 	envoyextproc "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/extproc"
+	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/metrics"
 	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/nextmoca"
 	"google.golang.org/grpc"
 )
@@ -44,16 +45,10 @@ func run() error {
 		return fmt.Errorf("listen on %s: %w", config.ListenAddress, err)
 	}
 	grpcServer := grpc.NewServer()
-	envoyextproc.RegisterExternalProcessorServer(grpcServer, extproc.NewServer(config.Runtime, nextmoca.NewHTTPClient(config.Hosted)))
+	telemetry := metrics.New()
+	envoyextproc.RegisterExternalProcessorServer(grpcServer, extproc.NewServer(config.Runtime, nextmoca.NewHTTPClient(config.Hosted), telemetry))
 
-	health := &http.Server{Addr: config.HealthAddress, Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/healthz" {
-			http.NotFound(writer, request)
-			return
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"status":"ok"}`))
-	})}
+	health := &http.Server{Addr: config.HealthAddress, Handler: managementHandler(telemetry)}
 	go func() {
 		if err := health.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("health endpoint failed", "error", err)
@@ -73,6 +68,20 @@ func run() error {
 	shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return health.Shutdown(shutdownContext)
+}
+
+func managementHandler(telemetry *metrics.Metrics) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", telemetry.Handler())
+	mux.HandleFunc("/healthz", func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/healthz" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"status":"ok"}`))
+	})
+	return mux
 }
 
 func loadConfig() (config, error) {

@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/metrics"
 	"github.com/nextmoca/envoy-nextmoca-runtime-defense/internal/nextmoca"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
@@ -41,12 +43,13 @@ func TestProcessRewritesOpenAIContextAfterVerifiedSelection(t *testing.T) {
 		}},
 	}}
 
+	telemetry := metrics.New()
 	client, cleanup := startExtProc(t, NewServer(Config{
 		Mode:             "quarantine",
 		RequestAdapter:   "openai_chat",
 		MaxContextTokens: 8192,
 		CapacityTokens:   128000,
-	}, selector))
+	}, selector, telemetry))
 	defer cleanup()
 
 	stream, err := client.Process(context.Background())
@@ -89,6 +92,11 @@ func TestProcessRewritesOpenAIContextAfterVerifiedSelection(t *testing.T) {
 	}
 	if !removesHeader(response.GetRequestBody().GetResponse().GetHeaderMutation(), "content-length") {
 		t.Fatal("body replacement must remove content-length so Envoy can recalculate it")
+	}
+	metricsResponse := httptest.NewRecorder()
+	telemetry.Handler().ServeHTTP(metricsResponse, httptest.NewRequest("GET", "/metrics", nil))
+	if got := metricsResponse.Body.String(); !strings.Contains(got, `nextmoca_extproc_decisions_total{decision="transform",mode="quarantine",outcome="selected",reason="selected"} 1`) {
+		t.Fatalf("metrics output did not record the transformed decision: %s", got)
 	}
 }
 
