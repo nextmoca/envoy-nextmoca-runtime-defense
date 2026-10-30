@@ -15,6 +15,10 @@ if grep -Fq 'Deprecated field' "$envoy_log"; then
   echo "Raw Envoy example uses a deprecated configuration field" >&2
   exit 1
 fi
+if ! grep -Fq 'address: 127.0.0.1' "$root/examples/envoy/envoy.yaml"; then
+  echo "Raw Envoy example must bind the admin interface to loopback" >&2
+  exit 1
+fi
 
 helm template nextmoca "$root/charts/nextmoca-envoy-extproc" \
   --namespace ai-gateway \

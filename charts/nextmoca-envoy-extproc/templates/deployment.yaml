@@ -23,6 +23,8 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      # The bridge does not call the Kubernetes API.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "nextmoca-envoy-extproc.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

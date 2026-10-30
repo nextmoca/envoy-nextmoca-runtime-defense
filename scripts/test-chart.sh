@@ -15,6 +15,12 @@ grep -Fq 'name: grpc' "$default_render"
 grep -Fq 'containerPort: 9002' "$default_render"
 grep -Fq 'readOnlyRootFilesystem: true' "$default_render"
 grep -Fq 'drop:' "$default_render"
+grep -Fq 'automountServiceAccountToken: false' "$default_render"
+
+if helm template nextmoca "$chart" --set-string existingSecret.name='' >/dev/null 2>&1; then
+  echo "Helm chart must reject an empty existingSecret.name" >&2
+  exit 1
+fi
 
 helm template nextmoca "$chart" --namespace ai-gateway -f "$chart/tests/gateway-values.yaml" >"$gateway_render"
 grep -Fq 'kind: EnvoyExtensionPolicy' "$gateway_render"

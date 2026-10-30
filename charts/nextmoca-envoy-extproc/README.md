@@ -40,5 +40,6 @@ The policy always uses a buffered request body because the bridge must decide ov
 
 - `GET /healthz` supplies liveness and readiness probes.
 - `GET /metrics` supplies bounded Prometheus metrics and never includes prompts, record IDs, user data, API keys, or request IDs as labels.
+- The deployment does not mount a Kubernetes service-account token because the bridge does not call the Kubernetes API.
 - `networkPolicy.enabled=false` by default. When enabling it, define both ingress from Envoy and egress to DNS plus `api.nextmoca.com` through your cluster's approved egress mechanism.
 - `serviceMonitor.enabled=true` requires the Prometheus Operator CRDs.
