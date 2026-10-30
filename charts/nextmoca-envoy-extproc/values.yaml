@@ -84,3 +84,15 @@ envoyGateway:
     sectionName: ""
   messageTimeout: 3s
   failOpen: false
+
+istio:
+  enabled: false
+  # Required when enabled. These labels select only agent workloads whose
+  # outbound HTTP calls should be governed.
+  workloadSelectorLabels: {}
+  # The mesh-visible HTTP port of the internal model gateway.
+  outboundPort: 8080
+  # Empty uses the Helm release namespace where the ExtProc bridge runs.
+  bridgeNamespace: ""
+  messageTimeout: 3s
+  failOpen: false

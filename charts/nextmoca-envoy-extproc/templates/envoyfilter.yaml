@@ -1,0 +1,41 @@
+{{- if .Values.istio.enabled }}
+{{- $bridgeNamespace := default .Release.Namespace .Values.istio.bridgeNamespace }}
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: {{ include "nextmoca-envoy-extproc.fullname" . }}
+  labels:
+    {{- include "nextmoca-envoy-extproc.labels" . | nindent 4 }}
+spec:
+  workloadSelector:
+    labels:
+      {{- toYaml .Values.istio.workloadSelectorLabels | nindent 6 }}
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_OUTBOUND
+        listener:
+          portNumber: {{ .Values.istio.outboundPort }}
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.ext_proc
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+            grpc_service:
+              envoy_grpc:
+                cluster_name: outbound|{{ .Values.service.grpcPort }}||{{ include "nextmoca-envoy-extproc.fullname" . }}.{{ $bridgeNamespace }}.svc.cluster.local
+              timeout: {{ .Values.istio.messageTimeout }}
+            processing_mode:
+              request_header_mode: SEND
+              request_body_mode: BUFFERED
+              response_header_mode: SKIP
+              response_body_mode: NONE
+            message_timeout: {{ .Values.istio.messageTimeout }}
+            failure_mode_allow: {{ .Values.istio.failOpen }}
+{{- end }}

@@ -1,0 +1,11 @@
+existingSecret:
+  name: customer-nextmoca-key
+
+istio:
+  enabled: true
+  workloadSelectorLabels:
+    app: model-agent
+  outboundPort: 8080
+  bridgeNamespace: ai-gateway
+  messageTimeout: 3s
+  failOpen: false
