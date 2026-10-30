@@ -111,6 +111,19 @@ Use `failOpen: false` with `quarantine` or `enforce` for a fail-closed security 
 
 The bridge sends `x-nextmoca-decision`, `x-nextmoca-outcome`, token counts, and, when supplied, `x-nextmoca-selection-id` to the upstream provider as receipt headers. These headers are never returned to the original caller by the bridge.
 
+## Deployment Recipes
+
+- [`examples/envoy`](examples/envoy) provides a validated raw Envoy ExtProc
+  filter configuration for a narrow `/v1/` provider route.
+- [`examples/envoy-gateway`](examples/envoy-gateway) provides values for a
+  route-scoped `EnvoyExtensionPolicy` through Envoy Gateway.
+
+For either deployment surface, roll out one provider route at a time:
+`shadow` first, then `active`, followed by `quarantine` or `enforce` only after
+the gateway receipts and `/metrics` output are understood. Buffered request
+bodies are required; streaming requests and WebSocket upgrades should use a
+separate route that bypasses this bridge.
+
 ## Verification
 
 ```bash

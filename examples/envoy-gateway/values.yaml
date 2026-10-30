@@ -1,0 +1,17 @@
+existingSecret:
+  name: customer-nextmoca-key
+
+bridge:
+  mode: quarantine
+  requestAdapter: auto
+  unsupportedShape: block
+  onSelectionError: block
+
+envoyGateway:
+  enabled: true
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: model-provider-route
+  messageTimeout: 3s
+  failOpen: false
