@@ -32,6 +32,7 @@ grep -Fq 'failOpen: false' "$gateway_render"
 
 helm template nextmoca "$chart" --namespace ai-gateway -f "$chart/tests/istio-values.yaml" >"$istio_render"
 grep -Fq 'kind: EnvoyFilter' "$istio_render"
+grep -Fq 'namespace: agent-workloads' "$istio_render"
 grep -Fq 'app: model-agent' "$istio_render"
 grep -Fq 'context: SIDECAR_OUTBOUND' "$istio_render"
 grep -Fq 'portNumber: 8080' "$istio_render"

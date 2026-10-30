@@ -7,5 +7,6 @@ istio:
     app: model-agent
   outboundPort: 8080
   bridgeNamespace: ai-gateway
+  workloadNamespace: agent-workloads
   messageTimeout: 3s
   failOpen: false

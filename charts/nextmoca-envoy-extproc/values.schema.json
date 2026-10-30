@@ -54,7 +54,7 @@
     },
     "istio": {
       "type": "object",
-      "required": ["enabled", "workloadSelectorLabels", "outboundPort", "bridgeNamespace", "messageTimeout", "failOpen"],
+      "required": ["enabled", "workloadSelectorLabels", "outboundPort", "bridgeNamespace", "workloadNamespace", "messageTimeout", "failOpen"],
       "properties": {
         "enabled": {"type": "boolean"},
         "workloadSelectorLabels": {
@@ -63,6 +63,7 @@
         },
         "outboundPort": {"type": "integer", "minimum": 1, "maximum": 65535},
         "bridgeNamespace": {"type": "string"},
+        "workloadNamespace": {"type": "string"},
         "messageTimeout": {"type": "string", "minLength": 1},
         "failOpen": {"type": "boolean"}
       },

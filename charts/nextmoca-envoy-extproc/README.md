@@ -44,6 +44,12 @@ configured mesh-visible HTTP `istio.outboundPort`. See
 [`examples/istio`](../../examples/istio) for the recommended internal-model-
 gateway path and the optional direct-provider TLS-origination recipe.
 
+By default the filter is created in the Helm release namespace. When the
+bridge runs centrally but agents run elsewhere, set
+`istio.workloadNamespace=<agent namespace>`; the Helm identity needs permission
+to create an `EnvoyFilter` there. `istio.bridgeNamespace` remains the namespace
+where the bridge Service runs.
+
 ## Observability and security
 
 - `GET /healthz` supplies liveness and readiness probes.

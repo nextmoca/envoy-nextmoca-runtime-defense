@@ -52,14 +52,17 @@ istio:
   workloadSelectorLabels: {}
   outboundPort: 8080
   bridgeNamespace: ""
+  workloadNamespace: ""
   messageTimeout: 3s
   failOpen: false
 ```
 
 `workloadSelectorLabels` is required when enabled. `bridgeNamespace` defaults
-to the Helm release namespace. The optional direct-provider recipe is a
-separate manifest, not a chart default, because its external host and
-TLS-origination policy are customer-specific.
+to the Helm release namespace. `workloadNamespace` defaults to the release
+namespace but can target agents in another namespace when Helm has permission
+to create the `EnvoyFilter` there. The optional direct-provider recipe is a
+separate manifest, not a chart default, because its external host and TLS-
+origination policy are customer-specific.
 
 ## Safety and Operations
 

@@ -1,9 +1,11 @@
 {{- if .Values.istio.enabled }}
 {{- $bridgeNamespace := default .Release.Namespace .Values.istio.bridgeNamespace }}
+{{- $workloadNamespace := default .Release.Namespace .Values.istio.workloadNamespace }}
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
   name: {{ include "nextmoca-envoy-extproc.fullname" . }}
+  namespace: {{ $workloadNamespace }}
   labels:
     {{- include "nextmoca-envoy-extproc.labels" . | nindent 4 }}
 spec:

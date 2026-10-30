@@ -94,5 +94,8 @@ istio:
   outboundPort: 8080
   # Empty uses the Helm release namespace where the ExtProc bridge runs.
   bridgeNamespace: ""
+  # Empty uses the Helm release namespace. Set this when agent workloads live
+  # in a different namespace from the bridge.
+  workloadNamespace: ""
   messageTimeout: 3s
   failOpen: false

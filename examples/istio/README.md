@@ -25,6 +25,12 @@ helm upgrade --install nextmoca \
 the gateway. `outboundPort` must be the gateway's mesh-visible HTTP port. The
 chart does not apply an unscoped, mesh-wide filter.
 
+Install the chart in the agent namespace for the simplest deployment. For a
+central bridge in another namespace, add
+`--set istio.workloadNamespace=<agent-namespace>` and leave
+`istio.bridgeNamespace` set to the bridge namespace; Helm needs permission to
+create the namespaced `EnvoyFilter` in the agent namespace.
+
 ## Direct external provider with TLS origination
 
 [`direct-provider-tls-origination.yaml`](direct-provider-tls-origination.yaml)
