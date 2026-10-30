@@ -1,0 +1,22 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: nextmoca-runtime-defense
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: REPLACE_WITH_MODEL_ROUTE
+  extProc:
+    - backendRefs:
+        - name: nextmoca-envoy-extproc
+          port: 9002
+      # The bridge rejects streamed/partial request bodies. Buffered is required
+      # so it can make a decision over the exact provider request it mutates.
+      processingMode:
+        request:
+          body: Buffered
+      messageTimeout: 3s
+      # Fail closed for an enforcement route. Use failOpen: true only for
+      # shadow or active selection routes where pass-through is intentional.
+      failOpen: false

@@ -1,0 +1,41 @@
+services:
+  hosted-mock:
+    build:
+      context: .
+      target: e2e
+    command: ["/mock-nextmoca", "-listen", ":8081"]
+
+  provider-mock:
+    build:
+      context: .
+      target: e2e
+    command: ["/mock-provider", "-listen", ":8082"]
+
+  extproc:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NEXTMOCA_API_KEY: ${NEXTMOCA_API_KEY:-e2e-fixture-key}
+      NEXTMOCA_ENDPOINT: ${NEXTMOCA_ENDPOINT:-http://hosted-mock:8081}
+      NEXTMOCA_MODE: quarantine
+      NEXTMOCA_REQUEST_ADAPTER: openai_chat
+      NEXTMOCA_UNSUPPORTED_SHAPE: block
+      NEXTMOCA_ON_SELECTION_ERROR: block
+      NEXTMOCA_EXTPROC_LISTEN_ADDRESS: :9002
+      NEXTMOCA_HEALTH_LISTEN_ADDRESS: :8080
+    depends_on:
+      - hosted-mock
+    ports:
+      - "18080:8080"
+
+  envoy:
+    image: envoyproxy/envoy:v1.32-latest
+    depends_on:
+      - extproc
+      - provider-mock
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "warning"]
+    volumes:
+      - ./smoke/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "18000:10000"

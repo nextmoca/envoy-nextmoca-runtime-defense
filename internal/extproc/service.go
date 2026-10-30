@@ -80,7 +80,8 @@ func (s *Server) Process(stream envoyextproc.ExternalProcessor_ProcessServer) er
 				return err
 			}
 		case request.GetRequestBody() != nil:
-			response := s.processRequestBody(stream.Context(), request.GetRequestBody().GetBody(), requestContentType, requestHeaders)
+			body := request.GetRequestBody()
+			response := s.processRequestBody(stream.Context(), body.GetBody(), body.GetEndOfStream(), requestContentType, requestHeaders)
 			if err := stream.Send(response); err != nil {
 				return err
 			}
@@ -106,7 +107,10 @@ func (s *Server) Process(stream envoyextproc.ExternalProcessor_ProcessServer) er
 	}
 }
 
-func (s *Server) processRequestBody(ctx context.Context, body []byte, requestContentType string, requestHeaders http.Header) *envoyextproc.ProcessingResponse {
+func (s *Server) processRequestBody(ctx context.Context, body []byte, endOfStream bool, requestContentType string, requestHeaders http.Header) *envoyextproc.ProcessingResponse {
+	if !endOfStream {
+		return s.unsupported("unbuffered_request_body")
+	}
 	if !isJSON(requestContentType) {
 		return s.unsupported("non_json_request")
 	}
@@ -123,7 +127,7 @@ func (s *Server) processRequestBody(ctx context.Context, body []byte, requestCon
 	})
 	decision := policy.Decide(policy.Settings{Mode: s.config.Mode, OnSelectionError: s.config.OnSelectionError}, body, request, response, selectErr)
 	if decision.Kind == policy.Block {
-		return blockResponse(decision.Reason, receiptHeaders(decision.Receipt))
+		return blockResponse(decision.Reason)
 	}
 	if decision.Kind == policy.Transform {
 		return bodyResponse(decision.Body, receiptHeaders(decision.Receipt))
@@ -133,7 +137,7 @@ func (s *Server) processRequestBody(ctx context.Context, body []byte, requestCon
 
 func (s *Server) unsupported(reason string) *envoyextproc.ProcessingResponse {
 	if screeningMode(s.config.Mode) && strings.EqualFold(s.config.UnsupportedShape, "block") {
-		return blockResponse(reason, receiptHeaders(policy.Receipt{Reason: reason}))
+		return blockResponse(reason)
 	}
 	return bodyResponse(nil, receiptHeaders(policy.Receipt{Reason: reason}))
 }
@@ -146,10 +150,16 @@ func continueHeaders() *envoyextproc.ProcessingResponse {
 
 func bodyResponse(replacement []byte, headers *envoyextproc.HeaderMutation) *envoyextproc.ProcessingResponse {
 	response := continueResponse()
-	response.HeaderMutation = headers
 	if replacement != nil {
+		if headers == nil {
+			headers = &envoyextproc.HeaderMutation{}
+		}
+		// Envoy rejects a body mutation when the forwarded Content-Length still
+		// describes the pre-selection request body.
+		headers.RemoveHeaders = append(headers.RemoveHeaders, "content-length")
 		response.BodyMutation = &envoyextproc.BodyMutation{Mutation: &envoyextproc.BodyMutation_Body{Body: replacement}}
 	}
+	response.HeaderMutation = headers
 	return &envoyextproc.ProcessingResponse{Response: &envoyextproc.ProcessingResponse_RequestBody{
 		RequestBody: &envoyextproc.BodyResponse{Response: response},
 	}}
@@ -159,18 +169,18 @@ func continueResponse() *envoyextproc.CommonResponse {
 	return &envoyextproc.CommonResponse{Status: envoyextproc.CommonResponse_CONTINUE}
 }
 
-func blockResponse(reason string, headers *envoyextproc.HeaderMutation) *envoyextproc.ProcessingResponse {
+func blockResponse(reason string) *envoyextproc.ProcessingResponse {
 	status := typev3.StatusCode_Forbidden
 	if reason == "selection_error_blocked" {
 		status = typev3.StatusCode_ServiceUnavailable
 	}
-	if reason == "context_security_unsupported_request" {
+	if reason == "context_security_unsupported_request" || reason == "unbuffered_request_body" || reason == "non_json_request" {
 		status = typev3.StatusCode_UnprocessableEntity
 	}
 	return &envoyextproc.ProcessingResponse{Response: &envoyextproc.ProcessingResponse_ImmediateResponse{
 		ImmediateResponse: &envoyextproc.ImmediateResponse{
-			Status: &typev3.HttpStatus{Code: status}, Headers: headers,
-			Body: []byte(`{"error":"nextmoca_context_governance_blocked"}`), Details: reason,
+			Status: &typev3.HttpStatus{Code: status},
+			Body:   []byte(`{"error":"nextmoca_context_governance_blocked"}`), Details: reason,
 		},
 	}}
 }

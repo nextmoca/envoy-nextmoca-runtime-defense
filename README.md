@@ -1,0 +1,123 @@
+# Next Moca Runtime Defense for Envoy
+
+This repository is a thin [Envoy External Processing](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) bridge for the hosted Next Moca Runtime Defense API.
+
+It gives an Envoy route a last-hop control point before an AI-provider request leaves the gateway:
+
+```text
+Agent or application request
+  -> Envoy / Envoy Gateway
+  -> Next Moca ExtProc bridge
+  -> hosted Next Moca Select, Scan, Enforce API
+  -> model provider
+```
+
+The bridge contains **no Next Moca selection, scanning, or enforcement engine**. It only:
+
+- translates supported provider request shapes into the hosted API contract;
+- validates the hosted response;
+- rewrites selected original text into the provider request;
+- carries a compact receipt as upstream request headers; and
+- returns a deterministic pass-through or block when the configured delivery policy requires it.
+
+## Supported Provider Shapes
+
+| Adapter | Request shape | Auto detection |
+|---|---|---|
+| `openai_chat` | Chat Completions `messages` | Set explicitly, because a bare `messages` array is ambiguous |
+| `openai_responses` | Responses API `input` | Yes |
+| `anthropic_messages` | Messages API `messages` plus `anthropic-version` | Yes |
+| `gemini_generate_content` | Gemini `contents[].parts[].text` | Yes |
+
+Only scalar text context is rewritten. Multimodal blocks and unsupported request shapes are left untouched by default, or rejected in screening modes when `NEXTMOCA_UNSUPPORTED_SHAPE=block`.
+
+## Quick Start
+
+Build the production image locally:
+
+```bash
+docker build --target runtime -t nextmoca/envoy-extproc:local .
+```
+
+The bridge requires a hosted API key at runtime. Never bake a key into the image or a ConfigMap.
+
+```bash
+docker run --rm \
+  -e NEXTMOCA_API_KEY="$NEXTMOCA_API_KEY" \
+  -e NEXTMOCA_MODE=quarantine \
+  -e NEXTMOCA_REQUEST_ADAPTER=openai_chat \
+  -p 9002:9002 -p 8080:8080 \
+  nextmoca/envoy-extproc:local
+```
+
+`GET /healthz` is served on port `8080`; the Envoy ExtProc gRPC service listens on port `9002`.
+
+## Envoy Gateway
+
+The Kubernetes example in [`deploy/envoy-gateway`](deploy/envoy-gateway) deploys the bridge and attaches it to an `HTTPRoute` through an `EnvoyExtensionPolicy`.
+
+Build and publish the thin bridge image from this repository, then replace
+`REPLACE_WITH_PUBLISHED_BRIDGE_IMAGE` in `deployment.yaml` with that immutable
+image reference before applying the manifests.
+
+```bash
+kubectl apply -f deploy/envoy-gateway/secret.example.yaml  # replace the placeholder first
+kubectl apply -f deploy/envoy-gateway/deployment.yaml
+kubectl apply -f deploy/envoy-gateway/extension-policy.yaml
+```
+
+Set `REPLACE_WITH_MODEL_ROUTE` to the name of the target provider `HTTPRoute` before applying the policy. The policy deliberately uses `request.body: Buffered`. The bridge rejects partial bodies rather than selecting from incomplete input, and buffered request processing is incompatible with streaming requests and protocol upgrades such as WebSockets.
+
+Use `failOpen: false` with `quarantine` or `enforce` for a fail-closed security boundary. Use `failOpen: true` only for shadow or active-selection routes where pass-through is the explicit availability policy.
+
+## Runtime Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `NEXTMOCA_API_KEY` | required | Hosted Next Moca API key |
+| `NEXTMOCA_ENDPOINT` | `https://api.nextmoca.com` | Hosted service origin |
+| `NEXTMOCA_MODE` | `shadow` | `shadow`, `active`, `quarantine`, or `enforce` |
+| `NEXTMOCA_REQUEST_ADAPTER` | `auto` | Provider adapter listed above |
+| `NEXTMOCA_UNSUPPORTED_SHAPE` | `pass` | `pass` or `block` malformed/unsupported request shapes |
+| `NEXTMOCA_ON_SELECTION_ERROR` | `pass` | `pass` or `block` when the hosted service is unavailable |
+| `NEXTMOCA_MAX_CONTEXT_TOKENS` | `8192` | Target selected-context allowance |
+| `NEXTMOCA_CAPACITY_TOKENS` | `128000` | Downstream available input capacity |
+| `NEXTMOCA_OPERATING_POINT` | `np-2026-10-r8` | Hosted operating point |
+| `NEXTMOCA_TIMEOUT` | `3s` | One hosted request deadline; no bridge retries |
+
+The bridge sends `x-nextmoca-decision`, `x-nextmoca-outcome`, token counts, and, when supplied, `x-nextmoca-selection-id` to the upstream provider as receipt headers. These headers are never returned to the original caller by the bridge.
+
+## Verification
+
+```bash
+make test
+make e2e
+```
+
+`make e2e` launches four local containers: Envoy, the thin bridge, a deterministic hosted-service fixture, and a provider fixture. It proves that Envoy buffers a real request, the ExtProc stream rewrites it, unsafe fixture text is absent from the forwarded request, and the provider receives the Next Moca receipt.
+
+To verify the bridge against the real hosted API while retaining a local provider fixture:
+
+```bash
+export NEXTMOCA_API_KEY='...'
+make e2e-hosted
+```
+
+This command does not send traffic to a third-party model. It proves the gateway-to-hosted-Next-Moca-to-upstream request path and receipt propagation.
+
+To run the Gateway API policy against a disposable local Kind cluster, install [Kind](https://kind.sigs.k8s.io/) and Helm, then run:
+
+```bash
+make e2e-envoy-gateway
+```
+
+It installs Envoy Gateway `v1.9.0`, deploys the bridge plus deterministic fixtures, attaches the included `EnvoyExtensionPolicy`, sends an OpenAI-compatible request through the Gateway data plane, and then deletes the cluster.
+
+## Development
+
+```bash
+go test ./... -count=1
+docker build --target runtime -t nextmoca/envoy-extproc:local .
+```
+
+The Apache-2.0-licensed source in this repository is limited to the bridge and its tests, fixtures, deployment manifests, and documentation.

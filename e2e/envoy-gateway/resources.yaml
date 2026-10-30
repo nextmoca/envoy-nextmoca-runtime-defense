@@ -1,0 +1,190 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: nextmoca-e2e-proxy
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      # A Kind cluster has no LoadBalancer controller. ClusterIP keeps this
+      # disposable test portable while the script reaches Envoy via port-forward.
+      envoyService:
+        type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hosted-mock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hosted-mock
+  template:
+    metadata:
+      labels:
+        app: hosted-mock
+    spec:
+      containers:
+        - name: hosted-mock
+          image: nextmoca/e2e-tools:local
+          imagePullPolicy: Never
+          command: ["/mock-nextmoca", "-listen", ":8081"]
+          ports:
+            - containerPort: 8081
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hosted-mock
+spec:
+  selector:
+    app: hosted-mock
+  ports:
+    - port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provider-mock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: provider-mock
+  template:
+    metadata:
+      labels:
+        app: provider-mock
+    spec:
+      containers:
+        - name: provider-mock
+          image: nextmoca/e2e-tools:local
+          imagePullPolicy: Never
+          command: ["/mock-provider", "-listen", ":8082"]
+          ports:
+            - containerPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: provider-mock
+spec:
+  selector:
+    app: provider-mock
+  ports:
+    - port: 8082
+      targetPort: 8082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextmoca-envoy-extproc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nextmoca-envoy-extproc
+  template:
+    metadata:
+      labels:
+        app: nextmoca-envoy-extproc
+    spec:
+      containers:
+        - name: bridge
+          image: nextmoca/envoy-extproc:local
+          imagePullPolicy: Never
+          env:
+            - name: NEXTMOCA_API_KEY
+              value: e2e-fixture-key
+            - name: NEXTMOCA_ENDPOINT
+              value: http://hosted-mock:8081
+            - name: NEXTMOCA_MODE
+              value: quarantine
+            - name: NEXTMOCA_REQUEST_ADAPTER
+              value: openai_chat
+            - name: NEXTMOCA_UNSUPPORTED_SHAPE
+              value: block
+            - name: NEXTMOCA_ON_SELECTION_ERROR
+              value: block
+          ports:
+            - name: grpc
+              containerPort: 9002
+            - name: health
+              containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextmoca-envoy-extproc
+spec:
+  selector:
+    app: nextmoca-envoy-extproc
+  ports:
+    - name: grpc
+      port: 9002
+      targetPort: grpc
+      appProtocol: kubernetes.io/h2c
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: nextmoca-e2e
+spec:
+  gatewayClassName: eg
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: nextmoca-e2e-proxy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: nextmoca-model-route
+spec:
+  parentRefs:
+    - name: nextmoca-e2e
+  hostnames: ["e2e.nextmoca.local"]
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+      backendRefs:
+        - name: provider-mock
+          port: 8082
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: nextmoca-runtime-defense
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: nextmoca-model-route
+  extProc:
+    - backendRefs:
+        - name: nextmoca-envoy-extproc
+          port: 9002
+      processingMode:
+        request:
+          body: Buffered
+      messageTimeout: 3s
+      failOpen: false

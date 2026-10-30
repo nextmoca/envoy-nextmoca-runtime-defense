@@ -87,6 +87,9 @@ func TestProcessRewritesOpenAIContextAfterVerifiedSelection(t *testing.T) {
 	if got := headerValue(response.GetRequestBody().GetResponse().GetHeaderMutation(), "x-nextmoca-tokens-saved"); got != "28" {
 		t.Fatalf("receipt tokens saved = %q", got)
 	}
+	if !removesHeader(response.GetRequestBody().GetResponse().GetHeaderMutation(), "content-length") {
+		t.Fatal("body replacement must remove content-length so Envoy can recalculate it")
+	}
 }
 
 func TestProcessBlocksUnsafeHostedVerdictBeforeProvider(t *testing.T) {
@@ -117,6 +120,9 @@ func TestProcessBlocksUnsafeHostedVerdictBeforeProvider(t *testing.T) {
 	if got := response.GetImmediateResponse().GetStatus().GetCode(); got != 403 {
 		t.Fatalf("block status = %d, want 403", got)
 	}
+	if headers := response.GetImmediateResponse().GetHeaders(); headers != nil && len(headers.SetHeaders) > 0 {
+		t.Fatalf("blocked request must not return internal receipt headers: %+v", headers.SetHeaders)
+	}
 }
 
 func TestProcessAutoRoutesAnthropicByHeader(t *testing.T) {
@@ -145,6 +151,36 @@ func TestProcessAutoRoutesAnthropicByHeader(t *testing.T) {
 	}
 	if got := string(response.GetRequestBody().GetResponse().GetBodyMutation().GetBody()); !strings.Contains(got, "safe evidence") {
 		t.Fatalf("mutated body = %s", got)
+	}
+}
+
+func TestProcessDoesNotSelectFromPartialRequestBody(t *testing.T) {
+	selector := &fakeSelector{response: nextmoca.Response{Outcome: "selected"}}
+	client, cleanup := startExtProc(t, NewServer(Config{Mode: "enforce", RequestAdapter: "openai_chat", UnsupportedShape: "block"}, selector))
+	defer cleanup()
+
+	stream, err := client.Process(context.Background())
+	if err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if err := stream.Send(requestHeaders("application/json")); err != nil {
+		t.Fatalf("send headers: %v", err)
+	}
+	if _, err := stream.Recv(); err != nil {
+		t.Fatalf("receive header response: %v", err)
+	}
+	if err := stream.Send(requestBodyWithEndOfStream([]byte(`{"messages":[{"role":"tool","content":"complete but streamed"},{"role":"user","content":"task"}]}`), false)); err != nil {
+		t.Fatalf("send body: %v", err)
+	}
+	response, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("receive body response: %v", err)
+	}
+	if got := response.GetImmediateResponse().GetStatus().GetCode(); got != 422 {
+		t.Fatalf("partial body status = %d, want 422", got)
+	}
+	if selector.request.TaskPrompt != "" {
+		t.Fatalf("selector should not receive a partial body: %+v", selector.request)
 	}
 }
 
@@ -186,8 +222,12 @@ func requestHeadersWith(contentType string, additional map[string]string) *extpr
 }
 
 func requestBody(body []byte) *extprocv3.ProcessingRequest {
+	return requestBodyWithEndOfStream(body, true)
+}
+
+func requestBodyWithEndOfStream(body []byte, endOfStream bool) *extprocv3.ProcessingRequest {
 	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestBody{
-		RequestBody: &extprocv3.HttpBody{Body: body, EndOfStream: true},
+		RequestBody: &extprocv3.HttpBody{Body: body, EndOfStream: endOfStream},
 	}}
 }
 
@@ -201,4 +241,16 @@ func headerValue(mutation *extprocv3.HeaderMutation, key string) string {
 		}
 	}
 	return ""
+}
+
+func removesHeader(mutation *extprocv3.HeaderMutation, key string) bool {
+	if mutation == nil {
+		return false
+	}
+	for _, removed := range mutation.RemoveHeaders {
+		if removed == key {
+			return true
+		}
+	}
+	return false
 }

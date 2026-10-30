@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	selectPath       = "/v1/context/select"
-	maxWireBytes     = 6 * 1024 * 1024
-	defaultTimeout   = 3 * time.Second
-	defaultFailures  = 3
-	defaultCooldown  = 30 * time.Second
+	selectPath      = "/v1/context/select"
+	maxWireBytes    = 6 * 1024 * 1024
+	defaultTimeout  = 3 * time.Second
+	defaultFailures = 3
+	defaultCooldown = 30 * time.Second
 )
 
 type Config struct {
@@ -167,13 +167,13 @@ func (c *Client) wireRequest(request Request) map[string]any {
 	}
 	return map[string]any{
 		"request_id": request.RequestID,
-		"records": records,
-		"task": map[string]string{"prompt": request.TaskPrompt},
+		"records":    records,
+		"task":       map[string]string{"prompt": request.TaskPrompt},
 		"budget": map[string]any{
-			"max_context_tokens": c.config.MaxContextTokens,
+			"max_context_tokens":  c.config.MaxContextTokens,
 			"capacity_cap_tokens": c.config.CapacityTokens,
-			"operating_point": c.config.OperatingPoint,
-			"autochunk": c.config.Autochunk,
+			"operating_point":     c.config.OperatingPoint,
+			"autochunk":           c.config.Autochunk,
 		},
 		"render": true, "render_format": "plain", "return_per_record": true,
 		"security_mode": securityMode(c.config.Mode),
@@ -195,14 +195,14 @@ func securityMode(mode string) string {
 
 func decodeResponse(raw []byte, expectedRequestID string) (Response, error) {
 	var wire struct {
-		RequestID       string `json:"request_id"`
-		Outcome         string `json:"outcome"`
-		FallbackUsed    *bool  `json:"fallback_used"`
-		RenderedContext *string `json:"rendered_context"`
-		TokensBefore    *int `json:"tokens_before"`
-		TokensAfter     *int `json:"tokens_after"`
-		TokensSaved     *int `json:"tokens_saved"`
-		EngineLatencyMS *float64 `json:"engine_latency_ms"`
+		RequestID       string           `json:"request_id"`
+		Outcome         string           `json:"outcome"`
+		FallbackUsed    *bool            `json:"fallback_used"`
+		RenderedContext *string          `json:"rendered_context"`
+		TokensBefore    *int             `json:"tokens_before"`
+		TokensAfter     *int             `json:"tokens_after"`
+		TokensSaved     *int             `json:"tokens_saved"`
+		EngineLatencyMS *float64         `json:"engine_latency_ms"`
 		Selected        []SelectedRecord `json:"selected"`
 	}
 	if err := json.Unmarshal(raw, &wire); err != nil {
@@ -228,11 +228,11 @@ func decodeResponse(raw []byte, expectedRequestID string) (Response, error) {
 }
 
 type breaker struct {
-	mu           sync.Mutex
-	failures     int
-	limit        int
-	cooldown     time.Duration
-	openedUntil  time.Time
+	mu          sync.Mutex
+	failures    int
+	limit       int
+	cooldown    time.Duration
+	openedUntil time.Time
 }
 
 func newBreaker(limit int, cooldown time.Duration) *breaker {
