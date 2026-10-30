@@ -17,7 +17,8 @@ sees HTTP. The first release therefore supports these two deliberate paths:
 1. **Recommended: internal model gateway.** An agent calls a mesh service such
    as LiteLLM, Tyk AI Studio, or an organization model gateway over HTTP. Istio
    applies the ExtProc filter to that outbound HTTP listener. Mesh mTLS protects
-   service-to-service transit as normal.
+   agent-to-gateway transit. The bridge is a separately isolated in-cluster
+   control service in the verified topology.
 2. **Optional: direct external provider with Istio TLS origination.** The
    application calls an HTTP ServiceEntry port; Istio originates TLS on the
    provider hop. The application must intentionally use the plaintext HTTP
@@ -37,6 +38,12 @@ integration must not claim it can select or scan context it cannot inspect.
   `outbound|<grpcPort>||<bridgeService>.<bridgeNamespace>.svc.cluster.local`.
   The bridge Service's gRPC port is explicitly named `grpc`, which lets Istio
   configure HTTP/2 upstream handling.
+- Keep the bridge pod itself out of Istio injection when `istio.enabled=true`.
+  The selected agent workload remains injected. In the supported Istio release,
+  injecting both ends resets the long-lived ExtProc gRPC stream before a
+  processing response is delivered. The bridge Service is therefore an
+  in-cluster control service and should be isolated with a Kubernetes
+  `NetworkPolicy` when network isolation is required.
 - Buffer only request bodies. Skip response processing. A bounded `3s`
   message timeout and `failOpen` setting mirror the selected delivery mode.
 - Scope every filter with a workload selector and one outbound port. Never
@@ -63,6 +70,15 @@ namespace but can target agents in another namespace when Helm has permission
 to create the `EnvoyFilter` there. The optional direct-provider recipe is a
 separate manifest, not a chart default, because its external host and TLS-
 origination policy are customer-specific.
+
+The chart deliberately applies `sidecar.istio.io/inject: "false"` to the bridge
+pod when Istio integration is enabled. This applies only to the bridge; it does
+not opt agent workloads out of injection or remove the `EnvoyFilter`. The
+setting is required by the verified topology on Istio 1.31.3: injecting both
+the agent and the bridge resets the long-lived ExtProc gRPC stream before the
+bridge can return a processing response. Customers that require isolation on
+this in-cluster control hop should restrict bridge ingress with a Kubernetes
+`NetworkPolicy`.
 
 ## Safety and Operations
 

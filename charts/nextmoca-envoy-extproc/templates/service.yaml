@@ -13,7 +13,7 @@ spec:
       port: {{ .Values.service.grpcPort }}
       targetPort: grpc
       protocol: TCP
-      appProtocol: kubernetes.io/h2c
+      appProtocol: grpc
     - name: health
       port: {{ .Values.service.healthPort }}
       targetPort: health

@@ -41,6 +41,9 @@ securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
   runAsNonRoot: true
+  # Distroless `nonroot` is UID 65532. Pinning it lets Kubernetes enforce
+  # runAsNonRoot without trying to resolve the image's symbolic user name.
+  runAsUser: 65532
   capabilities:
     drop:
       - ALL
@@ -97,5 +100,8 @@ istio:
   # Empty uses the Helm release namespace. Set this when agent workloads live
   # in a different namespace from the bridge.
   workloadNamespace: ""
+  # When enabled, the chart deliberately keeps the bridge pod out of Istio
+  # injection. Agent workloads selected above stay injected and governed.
+  # See examples/istio for the tested topology and isolation guidance.
   messageTimeout: 3s
   failOpen: false

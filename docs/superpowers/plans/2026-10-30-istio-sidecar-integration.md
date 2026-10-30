@@ -23,6 +23,7 @@
 - Empty workload selectors: Helm must reject them when Istio is enabled.
 - Unscoped filters: rendered filter must match `SIDECAR_OUTBOUND` plus the configured port.
 - HTTP/2 to the bridge: the ext_proc gRPC service must use Istio's existing outbound cluster and the named gRPC port.
+- Bridge topology: the chart must keep the bridge itself outside injection while retaining injection on selected agent workloads. The E2E must prove the chart, not a duplicate fixture, works in that topology.
 - Streaming: documentation must state that request buffering excludes streaming and protocol upgrades.
 - Direct HTTPS: documentation must distinguish it from the explicit TLS-origination recipe.
 

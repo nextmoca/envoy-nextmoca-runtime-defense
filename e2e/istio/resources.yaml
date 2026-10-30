@@ -74,58 +74,6 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nextmoca-envoy-extproc
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: nextmoca-envoy-extproc
-  template:
-    metadata:
-      labels:
-        app: nextmoca-envoy-extproc
-      annotations:
-        sidecar.istio.io/inject: "false"
-    spec:
-      containers:
-        - name: bridge
-          image: nextmoca/envoy-extproc:local
-          imagePullPolicy: Never
-          env:
-            - name: NEXTMOCA_API_KEY
-              value: e2e-fixture-key
-            - name: NEXTMOCA_ENDPOINT
-              value: http://hosted-mock:8081
-            - name: NEXTMOCA_MODE
-              value: quarantine
-            - name: NEXTMOCA_REQUEST_ADAPTER
-              value: openai_chat
-            - name: NEXTMOCA_UNSUPPORTED_SHAPE
-              value: block
-            - name: NEXTMOCA_ON_SELECTION_ERROR
-              value: block
-          ports:
-            - name: grpc
-              containerPort: 9002
-            - name: health
-              containerPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nextmoca-envoy-extproc
-spec:
-  selector:
-    app: nextmoca-envoy-extproc
-  ports:
-    - name: grpc
-      port: 9002
-      targetPort: grpc
-      appProtocol: grpc
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: agent-e2e
 spec:
   replicas: 1
@@ -141,40 +89,3 @@ spec:
         - name: agent
           image: curlimages/curl:8.16.0
           command: ["sh", "-c", "sleep 3600"]
----
-apiVersion: networking.istio.io/v1alpha3
-kind: EnvoyFilter
-metadata:
-  name: nextmoca-runtime-defense
-spec:
-  workloadSelector:
-    labels:
-      app: agent-e2e
-  configPatches:
-    - applyTo: HTTP_FILTER
-      match:
-        context: SIDECAR_OUTBOUND
-        listener:
-          portNumber: 8080
-          filterChain:
-            filter:
-              name: envoy.filters.network.http_connection_manager
-              subFilter:
-                name: envoy.filters.http.router
-      patch:
-        operation: INSERT_BEFORE
-        value:
-          name: envoy.filters.http.ext_proc
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
-            grpc_service:
-              envoy_grpc:
-                cluster_name: outbound|9002||nextmoca-envoy-extproc.nextmoca-istio-e2e.svc.cluster.local
-              timeout: 3s
-            processing_mode:
-              request_header_mode: SEND
-              request_body_mode: BUFFERED
-              response_header_mode: SKIP
-              response_body_mode: NONE
-            message_timeout: 3s
-            failure_mode_allow: false

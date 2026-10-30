@@ -7,15 +7,18 @@ script="$root/scripts/e2e-istio.sh"
 
 ruby -ryaml - "$resources" <<'RUBY'
 documents = YAML.load_stream(File.read(ARGV.fetch(0)))
-envoy_filter = documents.find { |document| document["kind"] == "EnvoyFilter" }
-abort "Istio E2E resources must define an EnvoyFilter" unless envoy_filter
-abort "Istio E2E filter must target outbound sidecar traffic" unless envoy_filter.to_s.include?("SIDECAR_OUTBOUND")
-abort "Istio E2E filter must buffer complete request bodies" unless envoy_filter.to_s.include?("BUFFERED")
-abort "Istio E2E filter must target only the agent fixture" unless envoy_filter.dig("spec", "workloadSelector", "labels", "app") == "agent-e2e"
+abort "Istio E2E must install the chart rather than duplicate an EnvoyFilter fixture" if documents.any? { |document| document["kind"] == "EnvoyFilter" }
+agent = documents.find { |document| document.dig("kind") == "Deployment" && document.dig("metadata", "name") == "agent-e2e" }
+abort "Istio E2E resources must define the injected agent fixture" unless agent
 RUBY
 
 grep -Fq 'helm upgrade --install istio-base' "$script"
 grep -Fq 'helm upgrade --install istiod' "$script"
+grep -Fq 'helm upgrade --install nextmoca "$root/charts/nextmoca-envoy-extproc"' "$script"
+grep -Fq -- '--set istio.enabled=true' "$script"
+grep -Fq 'context="kind-$cluster"' "$script"
+grep -Fq 'kubectl --context "$context"' "$script"
+grep -Fq -- '--kube-context "$context"' "$script"
 grep -Fq 'kind create cluster' "$script"
 grep -Fq 'X-Nextmoca-Tokens-Saved' "$script"
 

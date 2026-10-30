@@ -4,11 +4,20 @@ The bridge is designed for Istio **sidecar mode** when the agent's Envoy sees
 the model request as HTTP. The chart injects a workload-scoped `EnvoyFilter`
 that adds Envoy's `ext_proc` filter before the sidecar's outbound router.
 
+The chart keeps the ExtProc **bridge pod** outside Istio injection while the
+selected agent workloads remain injected. That is intentional: the verified
+topology avoids an Envoy-to-Envoy reset of the long-lived ExtProc gRPC stream.
+It does not remove the agent sidecar or its policy filter. Use a Kubernetes
+`NetworkPolicy` to restrict access to the bridge Service where required.
+
 ## Recommended: govern an internal model gateway
 
 Have agents call an internal, mesh-visible model gateway such as LiteLLM, Tyk
-AI Studio, or a provider proxy over HTTP. Istio protects the service-to-service
-hop with mesh mTLS while the sidecar can still inspect the HTTP request.
+AI Studio, or a provider proxy over HTTP. Istio protects agent-to-gateway
+transit with mesh mTLS while the sidecar can still inspect the HTTP request.
+The bridge itself is an in-cluster control service outside injection in the
+tested topology; restrict its Service with a Kubernetes `NetworkPolicy` when
+that boundary requires network isolation.
 
 ```bash
 helm upgrade --install nextmoca \

@@ -1,3 +1,7 @@
+{{- $podAnnotations := .Values.podAnnotations }}
+{{- if .Values.istio.enabled }}
+{{- $podAnnotations = omit .Values.podAnnotations "sidecar.istio.io/inject" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,9 +22,17 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
+      {{- if or $podAnnotations .Values.istio.enabled }}
       annotations:
+        {{- if .Values.istio.enabled }}
+        # Keep the ExtProc control-plane bridge outside the mesh. The agent
+        # workload remains injected; injecting both ends resets the long-lived
+        # ExtProc gRPC stream on the supported Istio release.
+        sidecar.istio.io/inject: "false"
+        {{- end }}
+        {{- with $podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
     spec:
       # The bridge does not call the Kubernetes API.

@@ -44,6 +44,13 @@ configured mesh-visible HTTP `istio.outboundPort`. See
 [`examples/istio`](../../examples/istio) for the recommended internal-model-
 gateway path and the optional direct-provider TLS-origination recipe.
 
+When the Istio integration is enabled, the chart deliberately sets
+`sidecar.istio.io/inject: "false"` on the **bridge pod only**. The selected
+agent workloads remain sidecar-injected. This keeps the long-lived ExtProc gRPC
+control stream on the verified topology; it does not disable governance on
+agents. Restrict bridge reachability with a Kubernetes `NetworkPolicy` when
+your cluster requires network isolation for in-mesh control services.
+
 By default the filter is created in the Helm release namespace. When the
 bridge runs centrally but agents run elsewhere, set
 `istio.workloadNamespace=<agent namespace>`; the Helm identity needs permission
