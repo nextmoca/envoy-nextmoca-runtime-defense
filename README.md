@@ -73,6 +73,13 @@ The release workflow publishes the image and chart when a `v*` Git tag is
 created. Until that first release tag exists, build the image locally and use
 the checked-out chart with `helm upgrade --install nextmoca charts/nextmoca-envoy-extproc ...`.
 
+Release tags publish a multi-architecture (`linux/amd64`, `linux/arm64`)
+distroless bridge image to
+`ghcr.io/nextmoca/envoy-nextmoca-runtime-defense` and the matching chart to
+`oci://ghcr.io/nextmoca/charts/nextmoca-envoy-extproc`. The image includes an
+SBOM and build provenance attestation and is signed by digest using GitHub
+Actions keyless Cosign identity.
+
 The bridge serves bounded Prometheus metrics on `/metrics`. Its metric labels
 never include prompts, selected records, user data, API keys, or request IDs.
 

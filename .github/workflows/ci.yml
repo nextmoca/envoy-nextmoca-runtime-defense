@@ -17,4 +17,5 @@ jobs:
         with:
           go-version: "1.27.x"
       - run: go test ./... -count=1
+      - run: go vet ./...
       - run: docker build --target runtime -t nextmoca/envoy-extproc:ci .
