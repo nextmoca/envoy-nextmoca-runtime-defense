@@ -1,0 +1,36 @@
+# Optional direct-provider route for sidecar-mode Istio.
+#
+# The agent must intentionally send HTTP to api.openai.com:80. Istio's sidecar
+# can then apply the Next Moca HTTP filter, and the DestinationRule originates
+# TLS for the final hop to the provider on port 443. Do not use this recipe for
+# applications that already open https://api.openai.com directly: that traffic
+# is encrypted before the sidecar can inspect it.
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: openai-api-http
+  namespace: agent-workloads
+spec:
+  hosts:
+    - api.openai.com
+  location: MESH_EXTERNAL
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+      targetPort: 443
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: openai-api-tls-origination
+  namespace: agent-workloads
+spec:
+  host: api.openai.com
+  trafficPolicy:
+    portLevelSettings:
+      - port:
+          number: 80
+        tls:
+          mode: SIMPLE

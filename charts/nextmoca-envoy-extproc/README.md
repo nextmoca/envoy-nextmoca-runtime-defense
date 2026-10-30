@@ -36,6 +36,14 @@ helm upgrade --install nextmoca \
 
 The policy always uses a buffered request body because the bridge must decide over the complete provider request. Use `shadow` first, then target `active`, `quarantine`, or `enforce` to the same route after observing receipts and metrics.
 
+## Istio sidecars
+
+Set `istio.enabled=true` to render a workload-scoped `EnvoyFilter` for agent
+sidecars. It requires `istio.workloadSelectorLabels` and governs only the
+configured mesh-visible HTTP `istio.outboundPort`. See
+[`examples/istio`](../../examples/istio) for the recommended internal-model-
+gateway path and the optional direct-provider TLS-origination recipe.
+
 ## Observability and security
 
 - `GET /healthz` supplies liveness and readiness probes.

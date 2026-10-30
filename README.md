@@ -124,12 +124,25 @@ The bridge sends `x-nextmoca-decision`, `x-nextmoca-outcome`, token counts, and,
   filter configuration for a narrow `/v1/` provider route.
 - [`examples/envoy-gateway`](examples/envoy-gateway) provides values for a
   route-scoped `EnvoyExtensionPolicy` through Envoy Gateway.
+- [`examples/istio`](examples/istio) provides a workload-scoped Istio sidecar
+  configuration for mesh-visible HTTP model-gateway traffic and an optional
+  external-provider TLS-origination recipe.
 
 For either deployment surface, roll out one provider route at a time:
 `shadow` first, then `active`, followed by `quarantine` or `enforce` only after
 the gateway receipts and `/metrics` output are understood. Buffered request
 bodies are required; streaming requests and WebSocket upgrades should use a
 separate route that bypasses this bridge.
+
+## Istio sidecars
+
+Istio sidecars can govern an agent's model request when the sidecar observes
+HTTP, typically because the agent calls an internal model gateway. Enable the
+chart's opt-in `istio` section with a workload selector and the gateway's
+outbound HTTP port. Direct application-issued HTTPS to an external provider is
+encrypted before it reaches the sidecar and is intentionally unsupported. The
+optional TLS-origination recipe in [`examples/istio`](examples/istio) preserves
+HTTPS on the provider hop while giving Istio an HTTP request to govern.
 
 ## Verification
 
