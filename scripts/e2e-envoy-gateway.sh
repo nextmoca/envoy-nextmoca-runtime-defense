@@ -9,6 +9,14 @@ kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.33.0}"
 port_forward_log="$(mktemp)"
 port_forward_pid=""
 
+report_pass() {
+  local message="$1"
+  echo "$message"
+  if [[ -n "${E2E_RESULT_FILE:-}" ]]; then
+    printf '%s\n' "$message" >"$E2E_RESULT_FILE"
+  fi
+}
+
 cleanup() {
   local exit_code=$?
   if [[ "$exit_code" -ne 0 ]]; then
@@ -84,4 +92,4 @@ if [[ "$response" != *'X-Nextmoca-Tokens-Saved'* ]]; then
   exit 1
 fi
 
-echo "ENVOY GATEWAY E2E PASS: The real Envoy Gateway policy buffered, governed, and rewrote the provider request through the ExtProc bridge."
+report_pass "ENVOY GATEWAY E2E PASS: The real Envoy Gateway policy buffered, governed, and rewrote the provider request through the ExtProc bridge."

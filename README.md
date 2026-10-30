@@ -159,6 +159,28 @@ make e2e-envoy-gateway
 
 It installs Envoy Gateway `v1.9.0`, deploys the bridge plus deterministic fixtures, attaches the included `EnvoyExtensionPolicy`, sends an OpenAI-compatible request through the Gateway data plane, and then deletes the cluster.
 
+## Verified Release Gate
+
+The following gate passed on October 30, 2026 for this repository's bridge,
+chart, and examples:
+
+```bash
+go test ./... -count=1
+go vet ./...
+make build chart-lint chart-test
+./scripts/test-examples.sh
+./scripts/test-workflows.sh
+make e2e
+NEXTMOCA_API_KEY="$NEXTMOCA_API_KEY" make e2e-hosted
+E2E_RESULT_FILE=/tmp/nextmoca-envoy-gateway-result make e2e-envoy-gateway
+```
+
+The local Envoy test verifies buffered-body mutation and receipt propagation.
+The hosted test calls the hosted Next Moca API while retaining a local provider
+fixture, so it does not invoke a third-party model. The Gateway test provisions
+a disposable Kind cluster, installs Envoy Gateway and the route-scoped policy,
+then verifies the same governed request path before deleting the cluster.
+
 ## Development
 
 ```bash
